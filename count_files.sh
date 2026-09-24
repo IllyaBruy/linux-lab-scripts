@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [ "$1" = "-h" ]; then
+echo "Usage: ./count_files.sh [directory] [extension]"
+exit 0
+fi
+
 TARGET_DIR=$1
 if [ -z "$TARGET_DIR" ]; then
   TARGET_DIR="/etc"
