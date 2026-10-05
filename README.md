@@ -14,3 +14,9 @@
 ## Автор
 
 Студент групи ПІ-241, Illia Brui
+
+## Лабораторні роботи
+
+- ЛР2 - count_files.sh
+- ЛР3 - .github/workflows/shellcheck.yml
+- ЛР4 - lab04/ (RPM, версії 1.0 і 2.0)
