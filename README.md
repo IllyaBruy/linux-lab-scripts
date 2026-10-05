@@ -20,3 +20,4 @@
 - ЛР2 - count_files.sh
 - ЛР3 - .github/workflows/shellcheck.yml
 - ЛР4 - lab04/ (RPM, версії 1.0 і 2.0)
+- ЛР5 - lab05/ (DEB)
