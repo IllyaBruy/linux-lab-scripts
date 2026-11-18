@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+
+echo "Removing count-files..."
+
+#DEBHELPER#
+
+exit 0

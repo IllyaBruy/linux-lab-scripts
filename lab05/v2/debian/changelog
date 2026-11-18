@@ -1,0 +1,11 @@
+count-files (2.0) unstable; urgency=medium
+
+  * Added config file and maintainer scripts
+
+ -- Illia Brui <levchenkoillya234@gmail.com>  Wed, 18 Nov 2026 23:18:00 +0200
+
+count-files (1.0) unstable; urgency=medium
+
+  * Initial release of count-files package.
+
+ -- Illia Brui <levchenkoillya234@gmail.com>  Mon, 05 Oct 2026 23:21:40 +0300

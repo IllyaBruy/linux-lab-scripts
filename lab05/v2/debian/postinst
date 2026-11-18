@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+
+echo "count-files 2.0 installed."
+echo "Config: /etc/count-files.conf"
+
+#DEBHELPER#
+
+exit 0
