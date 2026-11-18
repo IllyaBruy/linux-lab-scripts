@@ -3,12 +3,40 @@ name: Build Packages
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
 
 jobs:
+  test-script:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check syntax
+        run: bash -n count_files.sh
+
+      - name: Run with defaults
+        run: ./count_files.sh
+
+      - name: Run with arguments
+        run: ./count_files.sh /var/log log
+
+      - name: Check help option
+        run: ./count_files.sh -h
+
+      - name: Check error handling
+        run: |
+          if ./count_files.sh /no/such/dir; then
+            echo "FAIL: script accepted a missing directory"
+            exit 1
+          fi
+          echo "OK: script rejected a missing directory"
+
   build-rpm:
+    needs: test-script
     runs-on: ubuntu-latest
     container: fedora:latest
 
@@ -46,15 +74,28 @@ jobs:
           path: out/*.rpm
 
   build-deb:
-    runs-on: ubuntu-latest
+    needs: test-script
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-22.04, ubuntu-24.04 ]
 
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache apt archives
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-cache
+          key: apt-${{ matrix.os }}-debhelper-v1
+
       - name: Install build tools
         run: |
+          mkdir -p ~/apt-cache/partial
           sudo apt-get update
-          sudo apt-get install -y build-essential debhelper devscripts
+          sudo apt-get install -y -o Dir::Cache::archives="$HOME/apt-cache" build-essential debhelper devscripts
+          sudo chown -R "$USER" ~/apt-cache
 
       - name: Prepare build directory
         run: |
@@ -71,5 +112,23 @@ jobs:
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: deb-package
+          name: deb-package-${{ matrix.os }}
           path: build/*.deb
+
+  release:
+    needs: [ build-rpm, build-deb ]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*/* --generate-notes
