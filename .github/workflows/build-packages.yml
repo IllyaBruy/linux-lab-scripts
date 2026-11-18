@@ -1,120 +1,3 @@
-name: Build Packages
-
-on:
-  push:
-    branches: [ main ]
-    tags: [ 'v*' ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:
-
-jobs:
-  test-script:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Check syntax
-        run: bash -n count_files.sh
-
-      - name: Run with defaults
-        run: ./count_files.sh
-
-      - name: Run with arguments
-        run: ./count_files.sh /var/log log
-
-      - name: Check help option
-        run: ./count_files.sh -h
-
-      - name: Check error handling
-        run: |
-          if ./count_files.sh /no/such/dir; then
-            echo "FAIL: script accepted a missing directory"
-            exit 1
-          fi
-          echo "OK: script rejected a missing directory"
-
-  build-rpm:
-    needs: test-script
-    runs-on: ubuntu-latest
-    container: fedora:latest
-
-    steps:
-      - name: Install build tools
-        run: dnf install -y rpm-build rpmdevtools git tar
-
-      - uses: actions/checkout@v4
-
-      - name: Setup RPM build environment
-        run: rpmdev-setuptree
-
-      - name: Prepare sources
-        run: |
-          mkdir -p ~/rpmbuild/SOURCES/count-files-1.0
-          cp count_files.sh ~/rpmbuild/SOURCES/count-files-1.0/
-          cd ~/rpmbuild/SOURCES
-          tar czvf count-files-1.0.tar.gz count-files-1.0
-
-      - name: Copy spec file
-        run: cp packaging/rpm/count-files.spec ~/rpmbuild/SPECS/
-
-      - name: Build RPM
-        run: rpmbuild -ba ~/rpmbuild/SPECS/count-files.spec
-
-      - name: Collect RPM
-        run: |
-          mkdir -p out
-          cp ~/rpmbuild/RPMS/noarch/*.rpm out/
-
-      - name: Upload RPM artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: rpm-package
-          path: out/*.rpm
-
-  build-deb:
-    needs: test-script
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ ubuntu-22.04, ubuntu-24.04 ]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Cache apt archives
-        uses: actions/cache@v4
-        with:
-          path: ~/apt-cache
-          key: apt-${{ matrix.os }}-debhelper-v1
-
-      - name: Install build tools
-        run: |
-          mkdir -p ~/apt-cache/partial
-          sudo apt-get update
-          sudo apt-get install -y -o Dir::Cache::archives="$HOME/apt-cache" build-essential debhelper devscripts
-          sudo chown -R "$USER" ~/apt-cache
-
-      - name: Prepare build directory
-        run: |
-          mkdir -p build/count-files-1.0
-          cp count_files.sh build/count-files-1.0/
-          cp -r packaging/deb/debian build/count-files-1.0/
-          chmod +x build/count-files-1.0/debian/rules
-
-      - name: Build DEB
-        run: |
-          cd build/count-files-1.0
-          dpkg-buildpackage -us -uc -b
-
-      - name: Upload DEB artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: deb-package-${{ matrix.os }}
-          path: build/*.deb
-
   release:
     needs: [ build-rpm, build-deb ]
     if: startsWith(github.ref, 'refs/tags/v')
@@ -128,7 +11,16 @@ jobs:
         with:
           path: dist
 
+      - name: Prepare assets
+        run: |
+          mkdir -p assets
+          for f in dist/*/*; do
+            d=$(basename "$(dirname "$f")")
+            cp "$f" "assets/${d}-$(basename "$f")"
+          done
+          ls -l assets
+
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/*/* --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" assets/* --generate-notes -R "$GITHUB_REPOSITORY"
