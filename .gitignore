@@ -13,3 +13,4 @@
 # Build directories
 build/
 dist/
+.env
